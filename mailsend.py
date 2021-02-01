@@ -15,14 +15,18 @@ def get_mailservers(domain):
         yield r.exchange.to_text().rstrip('.')
 
 
-def send_email(mailsrv, sslctx, msg):
+def send_email(mailsrv, message, sslctx=None, username=None, password=None):
     with smtplib.SMTP(mailsrv) as smtp:
         logger.debug("Issuing STARTTLS")
         r = smtp.starttls(context=sslctx)
         logger.debug("STARTTLS response: {}".format(r))
 
+        if username is not None:
+            logger.debug("Logging in")
+            smtp.login(user=username, password=password)
+
         logger.debug("Sending message")
-        smtp.send_message(msg)
+        smtp.send_message(message)
 
         logger.debug("Issuing QUIT")
         r = smtp.quit()
@@ -48,12 +52,20 @@ def parse_args():
     grp.add_argument('--resolve', action="store_true",
             help="Find SMTP server by recipient domain MX record")
 
+    ap.add_argument('--auth-username')
+
     return ap.parse_args()
 
 
 def main():
     args = parse_args()
     logging.basicConfig(level=args.loglevel)
+
+    # Prompt for password if username is given
+    password = None
+    if args.auth_username is not None:
+        import getpass
+        password = getpass.getpass()
 
     # Build the message
     msg = EmailMessage()
@@ -80,7 +92,12 @@ def main():
         logger.info("Trying mailserver {}".format(hostname))
 
         try:
-            send_email(hostname, sslctx, msg)
+            send_email(mailsrv=hostname,
+                       message=msg,
+                       sslctx=sslctx,
+                       username=args.auth_username,
+                       password=password,
+                       )
         except (ConnectionRefusedError, socket.error):
             logger.exception("Error connecting to SMTP server")
         except ssl.SSLError:
