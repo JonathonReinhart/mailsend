@@ -21,14 +21,6 @@ def send_email(mailsrv, sslctx, msg):
         r = smtp.starttls(context=sslctx)
         logger.debug("STARTTLS response: {}".format(r))
 
-        logger.debug("Issuing EHLO (again)")
-        r = smtp.ehlo()
-        logger.debug("EHLO response: {}".format(r))
-
-        logger.debug("Issuing NOOP")
-        r = smtp.noop()
-        logger.debug("NOOP response: {}".format(r))
-
         logger.debug("Sending message")
         smtp.send_message(msg)
 
