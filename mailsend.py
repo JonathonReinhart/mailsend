@@ -5,7 +5,7 @@ import sys
 from email.message import EmailMessage
 
 def get_mailservers(domain):
-    mxresult = dns.resolver.resolve(domain, 'MX')
+    mxresult = dns.resolver.query(domain, 'MX')
     for r in sorted(mxresult, key=lambda r: r.preference):
         yield r.exchange.to_text().rstrip('.')
 
