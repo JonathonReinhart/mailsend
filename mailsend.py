@@ -4,6 +4,7 @@ import dns.resolver
 import sys
 from email.message import EmailMessage
 import logging
+import ssl
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,10 @@ def get_mailservers(domain):
         yield r.exchange.to_text().rstrip('.')
 
 
-def send_email(mailsrv, msg):
+def send_email(mailsrv, sslctx, msg):
     with smtplib.SMTP(mailsrv) as smtp:
         logger.debug("Issuing STARTTLS")
-        r = smtp.starttls()
+        r = smtp.starttls(context=sslctx)
         logger.debug("STARTTLS response: {}".format(r))
 
         logger.debug("Issuing EHLO (again)")
@@ -68,6 +69,8 @@ def main():
     # Look up mailservers
     username, domain = args.mailto.split('@')
     mailsrvs = list(get_mailservers(domain))
+
+    sslctx = ssl.create_default_context()
 
     # Try to send!
     for hostname in mailsrvs:
