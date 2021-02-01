@@ -89,5 +89,7 @@ def main():
             logger.exception("Error sending message")
         else:
             break
+    else:
+        raise SystemExit("No more servers to try!")
 
 main()
