@@ -4,6 +4,7 @@ import dns.resolver
 import sys
 from email.message import EmailMessage
 import logging
+import socket
 import ssl
 
 logger = logging.getLogger(__name__)
@@ -77,8 +78,12 @@ def main():
         logger.info("Trying mailserver {}".format(hostname))
 
         try:
-            send_email(hostname, msg)
-        except Exception:  # TODO: Narrow
+            send_email(hostname, sslctx, msg)
+        except (ConnectionRefusedError, socket.error):
+            logger.exception("Error connecting to SMTP server")
+        except ssl.SSLError:
+            logger.exception("SSL Error")
+        except smtplib.SMTPException:
             logger.exception("Error sending message")
         else:
             break
