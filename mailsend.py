@@ -41,6 +41,13 @@ def parse_args():
             choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
             default=DEFAULT_LOGLEVEL,
             help='Set the logging level (default: {})'.format(DEFAULT_LOGLEVEL))
+
+    grp = ap.add_mutually_exclusive_group()
+    grp.add_argument('--server', default="localhost",
+            help="SMTP server to connect to")
+    grp.add_argument('--resolve', action="store_true",
+            help="Find SMTP server by recipient domain MX record")
+
     return ap.parse_args()
 
 
@@ -59,9 +66,12 @@ def main():
 
     logger.info("Message:\n{}".format(msg))
 
-    # Look up mailservers
-    username, domain = args.mailto.split('@')
-    mailsrvs = list(get_mailservers(domain))
+    if args.resolve:
+        # Look up mailservers
+        _, domain = args.mailto.split('@')
+        mailsrvs = list(get_mailservers(domain))
+    else:
+        mailsrvs = [args.server]
 
     sslctx = ssl.create_default_context()
 
