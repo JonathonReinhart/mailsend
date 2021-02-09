@@ -107,6 +107,7 @@ def main():
 
     # Build the message
     msg = EmailMessage()
+    print("Enter message followed by EOF (Ctrl+D):")
     msg.set_content(sys.stdin.read())
 
     msg['From'] = args.mailfrom
