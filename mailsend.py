@@ -25,12 +25,20 @@ def get_mailservers(domain):
         yield r.exchange.to_text().rstrip('.')
 
 
-def send_email(mailsrv, message, tls_mode=TLSMode.NONE, sslctx=None, username=None, password=None):
+def send_email(mailsrv, message,
+               tls_mode=TLSMode.NONE,
+               sslctx=None,
+               username=None,
+               password=None,
+               debug=False):
 
     if tls_mode == TLSMode.ALWAYS:
         raise NotImplementedError()
 
     with smtplib.SMTP(mailsrv) as smtp:
+        if debug:
+            smtp.set_debuglevel(2)
+
         if tls_mode == TLSMode.STARTTLS:
             logger.debug("Issuing STARTTLS")
             r = smtp.starttls(context=sslctx)
@@ -49,7 +57,6 @@ def send_email(mailsrv, message, tls_mode=TLSMode.NONE, sslctx=None, username=No
 
 
 def parse_args():
-    DEFAULT_LOGLEVEL = 'WARNING'
     DEFAULT_TLS_MODE = 'starttls'
 
     from argparse import ArgumentParser
@@ -57,10 +64,8 @@ def parse_args():
     ap.add_argument('--from', dest='mailfrom', required=True)
     ap.add_argument('--to', dest='mailto', required=True)
     ap.add_argument('--subject')
-    ap.add_argument('--loglevel', type=str.upper,
-            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            default=DEFAULT_LOGLEVEL,
-            help='Set the logging level (default: {})'.format(DEFAULT_LOGLEVEL))
+
+    ap.add_argument('--debug', action='store_true')
 
     # Server selection
     grp = ap.add_mutually_exclusive_group()
@@ -97,7 +102,7 @@ def get_ssl_context(args):
 
 def main():
     args = parse_args()
-    logging.basicConfig(level=args.loglevel)
+    logging.basicConfig(level=logging.DEBUG if args.debug else None)
 
     # Prompt for password if username is given
     password = None
@@ -136,6 +141,7 @@ def main():
                        sslctx=get_ssl_context(args),
                        username=args.auth_username,
                        password=password,
+                       debug=args.debug,
                        )
         except (ConnectionRefusedError, socket.error):
             logger.exception("Error connecting to SMTP server")
