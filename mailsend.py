@@ -6,8 +6,18 @@ from email.message import EmailMessage
 import logging
 import socket
 import ssl
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+class TLSMode(Enum):
+    NONE = 'none'
+    STARTTLS = 'starttls'
+    ALWAYS = 'always'
+
+    def __str__(self):
+        return self.value
+
 
 def get_mailservers(domain):
     mxresult = dns.resolver.query(domain, 'MX')
@@ -15,11 +25,24 @@ def get_mailservers(domain):
         yield r.exchange.to_text().rstrip('.')
 
 
-def send_email(mailsrv, message, sslctx=None, username=None, password=None):
+def send_email(mailsrv, message,
+               tls_mode=TLSMode.NONE,
+               sslctx=None,
+               username=None,
+               password=None,
+               debug=False):
+
+    if tls_mode == TLSMode.ALWAYS:
+        raise NotImplementedError()
+
     with smtplib.SMTP(mailsrv) as smtp:
-        logger.debug("Issuing STARTTLS")
-        r = smtp.starttls(context=sslctx)
-        logger.debug("STARTTLS response: {}".format(r))
+        if debug:
+            smtp.set_debuglevel(2)
+
+        if tls_mode == TLSMode.STARTTLS:
+            logger.debug("Issuing STARTTLS")
+            r = smtp.starttls(context=sslctx)
+            logger.debug("STARTTLS response: {}".format(r))
 
         if username is not None:
             logger.debug("Logging in")
@@ -34,32 +57,52 @@ def send_email(mailsrv, message, sslctx=None, username=None, password=None):
 
 
 def parse_args():
-    DEFAULT_LOGLEVEL = 'WARNING'
+    DEFAULT_TLS_MODE = 'starttls'
 
     from argparse import ArgumentParser
     ap = ArgumentParser()
     ap.add_argument('--from', dest='mailfrom', required=True)
     ap.add_argument('--to', dest='mailto', required=True)
     ap.add_argument('--subject')
-    ap.add_argument('--loglevel', type=str.upper,
-            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            default=DEFAULT_LOGLEVEL,
-            help='Set the logging level (default: {})'.format(DEFAULT_LOGLEVEL))
 
+    ap.add_argument('--debug', action='store_true')
+
+    # Server selection
     grp = ap.add_mutually_exclusive_group()
     grp.add_argument('--server', default="localhost",
             help="SMTP server to connect to")
     grp.add_argument('--resolve', action="store_true",
             help="Find SMTP server by recipient domain MX record")
 
-    ap.add_argument('--auth-username')
+    # TLS Settings
+    ap.add_argument('--tls',
+            choices = TLSMode,
+            default=DEFAULT_TLS_MODE,
+            type=TLSMode,
+            help="TLS mode (default: {})".format(DEFAULT_TLS_MODE))
+    ap.add_argument('--no-verify', action='store_true',
+            help="Don't verify TLS server certificate (for testing only!)")
+
+    # Authentication
+    ap.add_argument('--auth-username',
+            help="User to authenticate as (will prompt for password)")
 
     return ap.parse_args()
 
 
+def get_ssl_context(args):
+    sslctx = ssl.create_default_context()
+
+    if args.no_verify:
+        sslctx.check_hostname = False
+        sslctx.verify_mode = ssl.CERT_NONE
+
+    return sslctx
+
+
 def main():
     args = parse_args()
-    logging.basicConfig(level=args.loglevel)
+    logging.basicConfig(level=logging.DEBUG if args.debug else None)
 
     # Prompt for password if username is given
     password = None
@@ -69,6 +112,7 @@ def main():
 
     # Build the message
     msg = EmailMessage()
+    print("Enter message followed by EOF (Ctrl+D):")
     msg.set_content(sys.stdin.read())
 
     msg['From'] = args.mailfrom
@@ -85,7 +129,6 @@ def main():
     else:
         mailsrvs = [args.server]
 
-    sslctx = ssl.create_default_context()
 
     # Try to send!
     for hostname in mailsrvs:
@@ -94,9 +137,11 @@ def main():
         try:
             send_email(mailsrv=hostname,
                        message=msg,
-                       sslctx=sslctx,
+                       tls_mode=args.tls,
+                       sslctx=get_ssl_context(args),
                        username=args.auth_username,
                        password=password,
+                       debug=args.debug,
                        )
         except (ConnectionRefusedError, socket.error):
             logger.exception("Error connecting to SMTP server")
@@ -109,4 +154,5 @@ def main():
     else:
         raise SystemExit("No more servers to try!")
 
-main()
+if __name__ == '__main__':
+    main()
