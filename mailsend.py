@@ -148,4 +148,5 @@ def main():
     else:
         raise SystemExit("No more servers to try!")
 
-main()
+if __name__ == '__main__':
+    main()
